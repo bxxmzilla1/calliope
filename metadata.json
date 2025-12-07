@@ -1,0 +1,5 @@
+{
+  "name": "Calliope",
+  "description": "A secure and elegant daily journal application that allows users to create, view, edit, and delete their entries. All data is stored locally for privacy and offline access.",
+  "requestFramePermissions": []
+}
