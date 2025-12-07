@@ -19,24 +19,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Check for existing session immediately
+    const initializeAuth = async () => {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Error getting session:', error);
+      }
       if (session?.user?.email) {
         setUser({ email: session.user.email });
       }
       setLoading(false);
-    });
+    };
 
-    // Listen for auth changes
+    initializeAuth();
+
+    // Listen for auth changes (including OAuth callbacks)
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email);
+      
       if (session?.user?.email) {
         setUser({ email: session.user.email });
       } else {
         setUser(null);
       }
       setLoading(false);
+
+      // Handle OAuth callback - redirect to dashboard after sign in
+      if (event === 'SIGNED_IN' && session) {
+        // Small delay to ensure state is updated
+        setTimeout(() => {
+          if (window.location.hash !== '#dashboard') {
+            window.location.hash = '#dashboard';
+          }
+        }, 100);
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -85,16 +103,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       ? 'https://calliope-git-main-heavenzy-ais-projects.vercel.app/#dashboard'
       : `${window.location.origin}/#dashboard`;
 
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: redirectUrl,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
       },
     });
 
     if (error) {
       throw new Error(error.message || 'Failed to sign in with Google.');
     }
+
+    // Note: The actual redirect happens automatically
+    // The session will be available after the redirect completes
   }, []);
 
   const logout = useCallback(async () => {

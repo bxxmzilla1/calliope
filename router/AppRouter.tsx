@@ -35,13 +35,21 @@ const AppRouter: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
-    // Handle OAuth callback
-    const handleAuthStateChange = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        // Redirect to dashboard after successful OAuth sign-in
-        window.location.hash = '#dashboard';
+    // Check for OAuth callback in URL hash (Supabase adds tokens to hash)
+    const checkOAuthCallback = async () => {
+      const hash = window.location.hash;
+      // Check if this is an OAuth callback (contains access_token or similar)
+      if (hash.includes('access_token') || hash.includes('type=recovery')) {
+        // Let Supabase handle the callback - it will trigger onAuthStateChange
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session) {
+          // Clean up the hash and redirect to dashboard
+          window.location.hash = '#dashboard';
+        }
       }
-    });
+    };
+
+    checkOAuthCallback();
 
     const { page: initialPage, params: initialParams } = parseHash();
     if (user && (initialPage === Page.Home || initialPage === Page.Login || initialPage === Page.SignUp)) {
@@ -66,7 +74,6 @@ const AppRouter: React.FC = () => {
     window.addEventListener('hashchange', handleHashChange);
     
     return () => {
-      handleAuthStateChange.data.subscription.unsubscribe();
       window.removeEventListener('hashchange', handleHashChange);
     };
   }, [user, parseHash]);
