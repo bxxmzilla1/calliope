@@ -7,6 +7,7 @@ interface AuthContextType {
   user: User | null;
   login: (email: string, password: string) => Promise<User>;
   signup: (email: string, password: string) => Promise<User>;
+  signInWithGoogle: () => Promise<void>;
   logout: () => void;
   loading: boolean;
 }
@@ -79,12 +80,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return newUser;
   }, []);
 
+  const signInWithGoogle = useCallback(async (): Promise<void> => {
+    const redirectUrl = import.meta.env.PROD 
+      ? 'https://calliope-git-main-heavenzy-ais-projects.vercel.app/#dashboard'
+      : `${window.location.origin}/#dashboard`;
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl,
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to sign in with Google.');
+    }
+  }, []);
+
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
   }, []);
 
-  const value = useMemo(() => ({ user, login, signup, logout, loading }), [user, login, signup, logout, loading]);
+  const value = useMemo(
+    () => ({ user, login, signup, signInWithGoogle, logout, loading }),
+    [user, login, signup, signInWithGoogle, logout, loading]
+  );
 
   return (
     <AuthContext.Provider value={value}>

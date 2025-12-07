@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
 import HomePage from '../pages/HomePage';
 import LoginPage from '../pages/LoginPage';
 import SignUpPage from '../pages/SignUpPage';
@@ -34,6 +35,14 @@ const AppRouter: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
+    // Handle OAuth callback
+    const handleAuthStateChange = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        // Redirect to dashboard after successful OAuth sign-in
+        window.location.hash = '#dashboard';
+      }
+    });
+
     const { page: initialPage, params: initialParams } = parseHash();
     if (user && (initialPage === Page.Home || initialPage === Page.Login || initialPage === Page.SignUp)) {
       setPage(Page.Dashboard);
@@ -55,7 +64,11 @@ const AppRouter: React.FC = () => {
     };
 
     window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    
+    return () => {
+      handleAuthStateChange.data.subscription.unsubscribe();
+      window.removeEventListener('hashchange', handleHashChange);
+    };
   }, [user, parseHash]);
 
   const navigate = (page: Page, params: Record<string, string> = {}) => {
