@@ -3,13 +3,16 @@ import React from 'react';
 import { AuthProvider } from './hooks/useAuth';
 import AppRouter from './router/AppRouter';
 import { JournalProvider } from './hooks/useJournal';
+import { SubscriptionProvider } from './hooks/useSubscription';
 
 const App: React.FC = () => {
   return (
     <AuthProvider>
-      <JournalProvider>
-        <AppRouter />
-      </JournalProvider>
+      <SubscriptionProvider>
+        <JournalProvider>
+          <AppRouter />
+        </JournalProvider>
+      </SubscriptionProvider>
     </AuthProvider>
   );
 };

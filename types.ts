@@ -3,6 +3,16 @@ export interface User {
   email: string;
 }
 
+export type SubscriptionTier = 'free' | 'premium';
+
+export interface UserProfile {
+  id: string;
+  user_id: string;
+  subscription_tier: SubscriptionTier;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface JournalEntry {
   id: string;
   title: string;
@@ -17,4 +27,5 @@ export enum Page {
   SignUp = 'SIGNUP',
   Dashboard = 'DASHBOARD',
   Entry = 'ENTRY',
+  Settings = 'SETTINGS',
 }

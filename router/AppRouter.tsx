@@ -7,6 +7,7 @@ import LoginPage from '../pages/LoginPage';
 import SignUpPage from '../pages/SignUpPage';
 import JournalDashboardPage from '../pages/JournalDashboardPage';
 import JournalEntryPage from '../pages/JournalEntryPage';
+import SettingsPage from '../pages/SettingsPage';
 import { Page } from '../types';
 import { RouterContext } from './RouterContext';
 import Header from '../components/Header';
@@ -85,6 +86,8 @@ const AppRouter: React.FC = () => {
         return <JournalDashboardPage />;
       case Page.Entry:
         return <JournalEntryPage />;
+      case Page.Settings:
+        return <SettingsPage />;
       default:
         return <JournalDashboardPage />;
     }

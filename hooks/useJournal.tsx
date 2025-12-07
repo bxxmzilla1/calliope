@@ -2,6 +2,7 @@
 import React, { createContext, useState, useContext, useEffect, useCallback, useMemo } from 'react';
 import { JournalEntry } from '../types';
 import { useAuth } from './useAuth';
+import { useSubscription } from './useSubscription';
 import { supabase } from '../lib/supabase';
 
 interface JournalContextType {
@@ -11,14 +12,21 @@ interface JournalContextType {
   updateEntry: (id: string, entryData: Partial<Omit<JournalEntry, 'id'>>) => Promise<JournalEntry>;
   deleteEntry: (id: string) => Promise<void>;
   loading: boolean;
+  canAddEntry: boolean;
+  entryLimit: number | null;
 }
 
 const JournalContext = createContext<JournalContextType | undefined>(undefined);
 
 export const JournalProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { user } = useAuth();
+  const { isPremium } = useSubscription();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [loading, setLoading] = useState(true);
+
+  const FREE_USER_LIMIT = 5;
+  const canAddEntry = isPremium || entries.length < FREE_USER_LIMIT;
+  const entryLimit = isPremium ? null : FREE_USER_LIMIT;
 
   const fetchEntries = useCallback(async () => {
     if (!user?.email) {
@@ -69,6 +77,11 @@ export const JournalProvider: React.FC<{ children: React.ReactNode }> = ({ child
   const addEntry = useCallback(async (entryData: Omit<JournalEntry, 'id' | 'date'>): Promise<JournalEntry> => {
     if (!user?.email) throw new Error("User not logged in");
 
+    // Check subscription limit
+    if (!isPremium && entries.length >= FREE_USER_LIMIT) {
+      throw new Error(`Free users can only create ${FREE_USER_LIMIT} entries. Upgrade to Premium for unlimited entries.`);
+    }
+
     const { data: { user: authUser } } = await supabase.auth.getUser();
     if (!authUser) throw new Error("User not authenticated");
 
@@ -98,7 +111,7 @@ export const JournalProvider: React.FC<{ children: React.ReactNode }> = ({ child
 
     await fetchEntries();
     return newEntry;
-  }, [user, fetchEntries]);
+  }, [user, fetchEntries, isPremium, entries.length]);
 
   const updateEntry = useCallback(async (id: string, entryData: Partial<Omit<JournalEntry, 'id'>>): Promise<JournalEntry> => {
     if (!user?.email) throw new Error("User not logged in");
@@ -162,7 +175,10 @@ export const JournalProvider: React.FC<{ children: React.ReactNode }> = ({ child
     return entries.find(entry => entry.id === id);
   }, [entries]);
 
-  const value = useMemo(() => ({ entries, getEntry, addEntry, updateEntry, deleteEntry, loading }), [entries, getEntry, addEntry, updateEntry, deleteEntry, loading]);
+  const value = useMemo(
+    () => ({ entries, getEntry, addEntry, updateEntry, deleteEntry, loading, canAddEntry, entryLimit }),
+    [entries, getEntry, addEntry, updateEntry, deleteEntry, loading, canAddEntry, entryLimit]
+  );
 
   return (
     <JournalContext.Provider value={value}>

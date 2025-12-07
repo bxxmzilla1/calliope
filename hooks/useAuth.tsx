@@ -21,7 +21,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Check if this is an OAuth callback by looking for tokens in the hash
     const hash = window.location.hash;
-    const isOAuthCallback = hash.includes('access_token') || hash.includes('type=recovery') || hash.includes('error');
+    const isOAuthCallback = hash.includes('access_token') || 
+                        hash.includes('type=recovery') || 
+                        hash.includes('error') ||
+                        hash.includes('code='); // Add this for PKCE flow
 
     let oauthCallbackProcessed = false;
 
@@ -177,14 +180,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const signInWithGoogle = useCallback(async (): Promise<void> => {
-    const redirectUrl = import.meta.env.PROD 
-      ? 'https://calliope-git-main-heavenzy-ais-projects.vercel.app/#dashboard'
-      : `${window.location.origin}/#dashboard`;
+    // Remove the hash fragment from redirect URL - Supabase will add it
+    const baseUrl = import.meta.env.PROD 
+      ? 'https://calliope-git-main-heavenzy-ais-projects.vercel.app'
+      : window.location.origin;
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: redirectUrl,
+        redirectTo: `${baseUrl}/#dashboard`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -195,10 +199,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (error) {
       throw new Error(error.message || 'Failed to sign in with Google.');
     }
-
-    // Note: The actual redirect happens automatically
-    // The session will be available after the redirect completes
-  }, []);
+}, []);
 
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
