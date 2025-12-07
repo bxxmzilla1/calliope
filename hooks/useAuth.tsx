@@ -19,21 +19,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check for existing session immediately
-    const initializeAuth = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error('Error getting session:', error);
-      }
-      if (session?.user?.email) {
-        setUser({ email: session.user.email });
-      }
-      setLoading(false);
-    };
+    // Check if this is an OAuth callback by looking for tokens in the hash
+    const hash = window.location.hash;
+    const isOAuthCallback = hash.includes('access_token') || hash.includes('type=recovery') || hash.includes('error');
 
-    initializeAuth();
-
-    // Listen for auth changes (including OAuth callbacks)
+    // Listen for auth changes (including OAuth callbacks) - set this up FIRST
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
@@ -41,21 +31,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (session?.user?.email) {
         setUser({ email: session.user.email });
+        
+        // If this is an OAuth callback and we just signed in, redirect to dashboard
+        if (event === 'SIGNED_IN') {
+          const currentHash = window.location.hash;
+          const isCallback = currentHash.includes('access_token') || currentHash.includes('type=recovery');
+          if (isCallback) {
+            // Clean up the hash and redirect
+            setTimeout(() => {
+              window.location.hash = '#dashboard';
+            }, 100);
+          }
+        }
       } else {
         setUser(null);
       }
       setLoading(false);
-
-      // Handle OAuth callback - redirect to dashboard after sign in
-      if (event === 'SIGNED_IN' && session) {
-        // Small delay to ensure state is updated
-        setTimeout(() => {
-          if (window.location.hash !== '#dashboard') {
-            window.location.hash = '#dashboard';
-          }
-        }, 100);
-      }
     });
+
+    // Check for existing session (after setting up the listener)
+    const initializeAuth = async () => {
+      // If OAuth callback, wait a bit for Supabase to process it
+      if (isOAuthCallback) {
+        // Give Supabase time to process the OAuth tokens
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Error getting session:', error);
+      }
+      
+      if (session?.user?.email) {
+        setUser({ email: session.user.email });
+        // If we have a session after OAuth callback, clean up the hash
+        if (isOAuthCallback && window.location.hash !== '#dashboard') {
+          window.location.hash = '#dashboard';
+        }
+      }
+      setLoading(false);
+    };
+
+    initializeAuth();
 
     return () => subscription.unsubscribe();
   }, []);
