@@ -25,6 +25,11 @@ const FeatherIcon: React.FC<{ className?: string }> = ({ className }) => (
 const Header: React.FC = () => {
   const { user, logout } = useAuth();
   const { navigate } = useRouter();
+  
+  // Debug: Log user state for deployment verification
+  if (typeof window !== 'undefined') {
+    console.log('[Header] User state:', user ? 'Logged in' : 'Not logged in');
+  }
 
   const handleLogout = () => {
     logout();
