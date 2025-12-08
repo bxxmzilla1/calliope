@@ -98,7 +98,7 @@ const SettingsPage: React.FC = () => {
                 </div>
               )}
 
-              <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* Free Plan */}
                 <div className={`border-2 rounded-lg p-6 ${
                   !isPremium ? 'border-teal-500 bg-teal-50' : 'border-gray-200'
@@ -159,7 +159,7 @@ const SettingsPage: React.FC = () => {
                           Priority support
                         </li>
                       </ul>
-                      <p className="mt-4 text-2xl font-bold text-gray-900">$9.99<span className="text-sm font-normal text-gray-600">/month</span></p>
+                      <p className="mt-4 text-2xl font-bold text-gray-900">$0.50<span className="text-sm font-normal text-gray-600">/month</span></p>
                     </div>
                     {isPremium && (
                       <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
