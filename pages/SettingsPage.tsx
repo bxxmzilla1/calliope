@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { useRouter } from '../hooks/useRouter';
 import { Page } from '../types';
+import { createCheckoutSession, cancelSubscription } from '../lib/stripe';
+import { supabase } from '../lib/supabase';
+import { createCheckoutSession, cancelSubscription } from '../lib/stripe';
+import { supabase } from '../lib/supabase';
 
 const SettingsPage: React.FC = () => {
   const { user, updateSubscription } = useAuth();
@@ -10,16 +14,35 @@ const SettingsPage: React.FC = () => {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
+  // Check for Stripe checkout success/cancel in URL params
+  useEffect(() => {
+    const hash = window.location.hash;
+    const params = new URLSearchParams(hash.split('?')[1] || '');
+    
+    if (params.get('success') === 'true' && params.get('session_id')) {
+      setSuccess('Payment successful! Your premium subscription is now active.');
+      // Refresh user data to get updated subscription
+      window.location.hash = '#settings';
+      setTimeout(() => {
+        window.location.reload();
+      }, 2000);
+    } else if (params.get('canceled') === 'true') {
+      setError('Payment was canceled. You can try again anytime.');
+      window.location.hash = '#settings';
+    }
+  }, []);
+
   const handleUpgrade = async () => {
     setLoading(true);
     setError('');
     setSuccess('');
     try {
-      await updateSubscription('premium');
-      setSuccess('Successfully upgraded to Premium! You now have unlimited journal entries.');
+      // Create Stripe checkout session
+      const checkoutUrl = await createCheckoutSession();
+      // Redirect to Stripe checkout
+      window.location.href = checkoutUrl;
     } catch (err: any) {
-      setError(err.message || 'Failed to upgrade subscription');
-    } finally {
+      setError(err.message || 'Failed to start checkout process');
       setLoading(false);
     }
   };
@@ -29,10 +52,27 @@ const SettingsPage: React.FC = () => {
     setError('');
     setSuccess('');
     try {
-      await updateSubscription('free');
-      setSuccess('Subscription changed to Free tier.');
+      // Check if user has a Stripe subscription
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) throw new Error("User not authenticated");
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('stripe_subscription_id')
+        .eq('user_id', authUser.id)
+        .single();
+
+      if (profile?.stripe_subscription_id) {
+        // Cancel Stripe subscription
+        await cancelSubscription();
+        setSuccess('Subscription canceled. You will remain on Premium until the end of your billing period.');
+      } else {
+        // No Stripe subscription, just update directly
+        await updateSubscription('free');
+        setSuccess('Subscription changed to Free tier.');
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to change subscription');
+      setError(err.message || 'Failed to cancel subscription');
     } finally {
       setLoading(false);
     }
@@ -191,7 +231,7 @@ const SettingsPage: React.FC = () => {
 
               <div className="mt-6 p-4 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-800">
-                  <strong>Note:</strong> This is a demo subscription system. In a production app, you would integrate with a payment provider like Stripe to handle actual payments.
+                  <strong>Note:</strong> Premium subscriptions are processed securely through Stripe. Your payment information is never stored on our servers.
                 </p>
               </div>
             </div>

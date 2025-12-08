@@ -55,6 +55,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  // Refresh subscription status after Stripe payment
+  const refreshSubscription = useCallback(async () => {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (authUser) {
+      const tier = await fetchUserProfile(authUser.id);
+      if (user) {
+        setUser({ ...user, subscriptionTier: tier });
+      }
+    }
+  }, [user, fetchUserProfile]);
+
   useEffect(() => {
     // Check if this is an OAuth callback by looking for tokens in the hash
     const hash = window.location.hash;
@@ -292,8 +303,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, []);
 
   const value = useMemo(
-    () => ({ user, login, signup, signInWithGoogle, logout, updateSubscription, loading }),
-    [user, login, signup, signInWithGoogle, logout, updateSubscription, loading]
+    () => ({ user, login, signup, signInWithGoogle, logout, updateSubscription, refreshSubscription, loading }),
+    [user, login, signup, signInWithGoogle, logout, updateSubscription, refreshSubscription, loading]
   );
 
   return (
