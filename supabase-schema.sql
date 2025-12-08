@@ -91,6 +91,55 @@ CREATE TRIGGER update_journal_entries_updated_at
   EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================
+-- 7. Create user_profiles table for subscription management
+-- ============================================
+CREATE TABLE IF NOT EXISTS user_profiles (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE UNIQUE,
+  subscription_tier TEXT NOT NULL DEFAULT 'free' CHECK (subscription_tier IN ('free', 'premium')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Create index on user_id
+CREATE INDEX IF NOT EXISTS idx_user_profiles_user_id ON user_profiles(user_id);
+
+-- Enable Row Level Security
+ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
+
+-- Drop existing policies if they exist
+DROP POLICY IF EXISTS "Users can view their own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can insert their own profile" ON user_profiles;
+DROP POLICY IF EXISTS "Users can update their own profile" ON user_profiles;
+
+-- Create policy: Users can view their own profile
+CREATE POLICY "Users can view their own profile"
+  ON user_profiles
+  FOR SELECT
+  USING (auth.uid() = user_id);
+
+-- Create policy: Users can insert their own profile
+CREATE POLICY "Users can insert their own profile"
+  ON user_profiles
+  FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Create policy: Users can update their own profile
+CREATE POLICY "Users can update their own profile"
+  ON user_profiles
+  FOR UPDATE
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Create trigger to automatically update updated_at for user_profiles
+DROP TRIGGER IF EXISTS update_user_profiles_updated_at ON user_profiles;
+
+CREATE TRIGGER update_user_profiles_updated_at
+  BEFORE UPDATE ON user_profiles
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- ============================================
 -- Verification Queries (Optional - run to verify)
 -- ============================================
 -- Check if table exists:

@@ -1,16 +1,9 @@
 
-export interface User {
-  email: string;
-}
-
 export type SubscriptionTier = 'free' | 'premium';
 
-export interface UserProfile {
-  id: string;
-  user_id: string;
-  subscription_tier: SubscriptionTier;
-  created_at: string;
-  updated_at: string;
+export interface User {
+  email: string;
+  subscriptionTier?: SubscriptionTier;
 }
 
 export interface JournalEntry {

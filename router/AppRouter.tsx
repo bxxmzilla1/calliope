@@ -41,7 +41,7 @@ const AppRouter: React.FC = () => {
       setPage(Page.Dashboard);
       setParams({});
       window.location.hash = `#${Page.Dashboard.toLowerCase()}`;
-    } else if (!user && (initialPage === Page.Dashboard || initialPage === Page.Entry)) {
+    } else if (!user && (initialPage === Page.Dashboard || initialPage === Page.Entry || initialPage === Page.Settings)) {
       setPage(Page.Home);
       setParams({});
       window.location.hash = `#${Page.Home.toLowerCase()}`;

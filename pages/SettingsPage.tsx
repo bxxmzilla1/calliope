@@ -1,30 +1,44 @@
 import React, { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { useSubscription } from '../hooks/useSubscription';
 import { useRouter } from '../hooks/useRouter';
 import { Page } from '../types';
 
 const SettingsPage: React.FC = () => {
-  const { user } = useAuth();
-  const { subscriptionTier, isPremium, upgradeToPremium, loading: subscriptionLoading } = useSubscription();
+  const { user, updateSubscription } = useAuth();
   const { navigate } = useRouter();
-  const [upgrading, setUpgrading] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
   const handleUpgrade = async () => {
-    setUpgrading(true);
+    setLoading(true);
     setError('');
     setSuccess('');
     try {
-      await upgradeToPremium();
-      setSuccess('Successfully upgraded to Premium! You now have unlimited entries.');
+      await updateSubscription('premium');
+      setSuccess('Successfully upgraded to Premium! You now have unlimited journal entries.');
     } catch (err: any) {
-      setError(err.message || 'Failed to upgrade to Premium. Please try again.');
+      setError(err.message || 'Failed to upgrade subscription');
     } finally {
-      setUpgrading(false);
+      setLoading(false);
     }
   };
+
+  const handleDowngrade = async () => {
+    setLoading(true);
+    setError('');
+    setSuccess('');
+    try {
+      await updateSubscription('free');
+      setSuccess('Subscription changed to Free tier.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to change subscription');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const isPremium = user?.subscriptionTier === 'premium';
 
   return (
     <div className="min-h-full py-12 sm:px-6 lg:px-8">
@@ -34,15 +48,27 @@ const SettingsPage: React.FC = () => {
             <h2 className="text-2xl font-bold text-gray-900">Settings</h2>
           </div>
 
-          <div className="px-6 py-5 space-y-8">
+          <div className="px-6 py-6 space-y-8">
             {/* User Profile Section */}
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">User Profile</h3>
               <div className="bg-gray-50 rounded-lg p-4">
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div>
                     <label className="block text-sm font-medium text-gray-700">Email</label>
                     <p className="mt-1 text-sm text-gray-900">{user?.email}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Subscription</label>
+                    <p className="mt-1">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                        isPremium 
+                          ? 'bg-purple-100 text-purple-800' 
+                          : 'bg-gray-100 text-gray-800'
+                      }`}>
+                        {isPremium ? 'Premium' : 'Free'}
+                      </span>
+                    </p>
                   </div>
                 </div>
               </div>
@@ -51,76 +77,123 @@ const SettingsPage: React.FC = () => {
             {/* Subscription Section */}
             <div>
               <h3 className="text-lg font-medium text-gray-900 mb-4">Subscription</h3>
-              <div className="bg-gray-50 rounded-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h4 className="text-base font-semibold text-gray-900">
-                      Current Plan: {subscriptionTier === 'premium' ? 'Premium' : 'Free'}
-                    </h4>
-                    <p className="mt-1 text-sm text-gray-600">
-                      {isPremium
-                        ? 'You have unlimited journal entries.'
-                        : 'You can create up to 5 journal entries. Upgrade to Premium for unlimited entries.'}
-                    </p>
+              
+              {error && (
+                <div className="mb-4 rounded-md bg-red-50 p-4">
+                  <div className="flex">
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-red-800">{error}</h3>
+                    </div>
                   </div>
-                  {subscriptionTier === 'premium' && (
-                    <span className="px-3 py-1 text-sm font-medium text-teal-800 bg-teal-100 rounded-full">
-                      Premium
-                    </span>
-                  )}
+                </div>
+              )}
+
+              {success && (
+                <div className="mb-4 rounded-md bg-green-50 p-4">
+                  <div className="flex">
+                    <div className="ml-3">
+                      <h3 className="text-sm font-medium text-green-800">{success}</h3>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="space-y-4">
+                {/* Free Plan */}
+                <div className={`border-2 rounded-lg p-6 ${
+                  !isPremium ? 'border-teal-500 bg-teal-50' : 'border-gray-200'
+                }`}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900">Free Plan</h4>
+                      <p className="mt-2 text-sm text-gray-600">Perfect for getting started</p>
+                      <ul className="mt-4 space-y-2 text-sm text-gray-600">
+                        <li className="flex items-center">
+                          <svg className="h-5 w-5 text-teal-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Up to 5 journal entries
+                        </li>
+                        <li className="flex items-center">
+                          <svg className="h-5 w-5 text-teal-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Basic mood tracking
+                        </li>
+                      </ul>
+                      <p className="mt-4 text-2xl font-bold text-gray-900">$0<span className="text-sm font-normal text-gray-600">/month</span></p>
+                    </div>
+                    {!isPremium && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-teal-100 text-teal-800">
+                        Current Plan
+                      </span>
+                    )}
+                  </div>
                 </div>
 
-                {!isPremium && (
-                  <div className="mt-6 border-t border-gray-200 pt-6">
-                    <div className="mb-4">
-                      <h5 className="text-base font-semibold text-gray-900 mb-2">Upgrade to Premium</h5>
-                      <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-                        <li>Unlimited journal entries</li>
-                        <li>All premium features</li>
-                        <li>Priority support</li>
+                {/* Premium Plan */}
+                <div className={`border-2 rounded-lg p-6 ${
+                  isPremium ? 'border-purple-500 bg-purple-50' : 'border-gray-200'
+                }`}>
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <h4 className="text-lg font-semibold text-gray-900">Premium Plan</h4>
+                      <p className="mt-2 text-sm text-gray-600">Unlock unlimited possibilities</p>
+                      <ul className="mt-4 space-y-2 text-sm text-gray-600">
+                        <li className="flex items-center">
+                          <svg className="h-5 w-5 text-purple-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Unlimited journal entries
+                        </li>
+                        <li className="flex items-center">
+                          <svg className="h-5 w-5 text-purple-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Advanced mood tracking
+                        </li>
+                        <li className="flex items-center">
+                          <svg className="h-5 w-5 text-purple-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                          Priority support
+                        </li>
                       </ul>
+                      <p className="mt-4 text-2xl font-bold text-gray-900">$9.99<span className="text-sm font-normal text-gray-600">/month</span></p>
                     </div>
-                    {error && (
-                      <div className="mb-4 rounded-md bg-red-50 p-4">
-                        <div className="flex">
-                          <div className="ml-3">
-                            <h3 className="text-sm font-medium text-red-800">{error}</h3>
-                          </div>
-                        </div>
-                      </div>
+                    {isPremium && (
+                      <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                        Current Plan
+                      </span>
                     )}
-                    {success && (
-                      <div className="mb-4 rounded-md bg-green-50 p-4">
-                        <div className="flex">
-                          <div className="ml-3">
-                            <h3 className="text-sm font-medium text-green-800">{success}</h3>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    <button
-                      onClick={handleUpgrade}
-                      disabled={upgrading || subscriptionLoading}
-                      className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:bg-teal-400 disabled:cursor-not-allowed"
-                    >
-                      {upgrading ? 'Upgrading...' : 'Upgrade to Premium'}
-                    </button>
-                    <p className="mt-2 text-xs text-gray-500 text-center">
-                      Note: This is a demo upgrade. In production, integrate with a payment provider like Stripe.
-                    </p>
                   </div>
-                )}
+                  <div className="mt-6">
+                    {!isPremium ? (
+                      <button
+                        onClick={handleUpgrade}
+                        disabled={loading}
+                        className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-purple-600 hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 disabled:bg-purple-400"
+                      >
+                        {loading ? 'Processing...' : 'Upgrade to Premium'}
+                      </button>
+                    ) : (
+                      <button
+                        onClick={handleDowngrade}
+                        disabled={loading}
+                        className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500 disabled:bg-gray-100"
+                      >
+                        {loading ? 'Processing...' : 'Downgrade to Free'}
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
-            </div>
 
-            {/* Back Button */}
-            <div className="pt-4">
-              <button
-                onClick={() => navigate(Page.Dashboard)}
-                className="w-full sm:w-auto px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500"
-              >
-                Back to Dashboard
-              </button>
+              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+                <p className="text-sm text-blue-800">
+                  <strong>Note:</strong> This is a demo subscription system. In a production app, you would integrate with a payment provider like Stripe to handle actual payments.
+                </p>
+              </div>
             </div>
           </div>
         </div>

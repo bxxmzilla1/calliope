@@ -8,7 +8,7 @@ This guide will help you deploy Calliope to Vercel.
 - A Vercel account (sign up at https://vercel.com)
 - A Supabase project (already set up)
 
-## Step 1: Push to GitHuba
+## Step 1: Push to GitHub
 
 1. Initialize git (if not already done):
    ```bash

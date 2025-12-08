@@ -9,6 +9,7 @@ interface AuthContextType {
   signup: (email: string, password: string) => Promise<User>;
   signInWithGoogle: () => Promise<void>;
   logout: () => void;
+  updateSubscription: (tier: 'free' | 'premium') => Promise<void>;
   loading: boolean;
 }
 
@@ -17,6 +18,26 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const fetchUserProfile = useCallback(async (userId: string): Promise<'free' | 'premium'> => {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('subscription_tier')
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+        console.error('Error fetching user profile:', error);
+        return 'free'; // Default to free
+      }
+
+      return (data?.subscription_tier as 'free' | 'premium') || 'free';
+    } catch (error) {
+      console.error('Error fetching user profile:', error);
+      return 'free';
+    }
+  }, []);
 
   useEffect(() => {
     // Check if this is an OAuth callback by looking for tokens in the hash
@@ -36,10 +57,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Handle INITIAL_SESSION event - this fires on page load
       if (event === 'INITIAL_SESSION') {
-        if (session?.user?.email) {
-          console.log('Initial session found:', session.user.email);
-          setUser({ email: session.user.email });
-          setLoading(false);
+      if (session?.user?.email) {
+        console.log('Initial session found:', session.user.email);
+        fetchUserProfile(session.user.id).then(tier => {
+          setUser({ email: session.user.email, subscriptionTier: tier });
+        });
+        setLoading(false);
         } else if (isOAuthCallback && !oauthCallbackProcessed) {
           // If we have OAuth tokens but no session yet, wait and retry
           console.log('OAuth callback detected but no session yet, will retry...');
@@ -54,7 +77,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Handle SIGNED_IN event - this fires after successful OAuth
       if (event === 'SIGNED_IN' && session?.user?.email) {
         console.log('User signed in:', session.user.email);
-        setUser({ email: session.user.email });
+        fetchUserProfile(session.user.id).then(tier => {
+          setUser({ email: session.user.email, subscriptionTier: tier });
+        });
         setLoading(false);
         oauthCallbackProcessed = true;
         
@@ -70,7 +95,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Handle TOKEN_REFRESHED
       if (event === 'TOKEN_REFRESHED' && session?.user?.email) {
-        setUser({ email: session.user.email });
+        fetchUserProfile(session.user.id).then(tier => {
+          setUser({ email: session.user.email, subscriptionTier: tier });
+        });
         setLoading(false);
       }
       
@@ -98,10 +125,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           if (error) {
             console.error('Error getting session (attempt', attempts + 1, '):', error);
           }
-          if (session?.user?.email) {
-            console.log('Session found after OAuth (attempt', attempts + 1, '):', session.user.email);
-            setUser({ email: session.user.email });
-            setLoading(false);
+      if (session?.user?.email) {
+        console.log('Session found after OAuth (attempt', attempts + 1, '):', session.user.email);
+        fetchUserProfile(session.user.id).then(tier => {
+          setUser({ email: session.user.email, subscriptionTier: tier });
+        });
+        setLoading(false);
             sessionFound = true;
             oauthCallbackProcessed = true;
             // Clean up the hash and redirect
@@ -131,7 +160,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
       
       if (session?.user?.email) {
-        setUser({ email: session.user.email });
+        fetchUserProfile(session.user.id).then(tier => {
+          setUser({ email: session.user.email, subscriptionTier: tier });
+        });
       }
       setLoading(false);
     };
@@ -139,7 +170,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initializeAuth();
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [fetchUserProfile]);
 
   const login = useCallback(async (email: string, password: string): Promise<User> => {
     const { data, error } = await supabase.auth.signInWithPassword({
@@ -155,7 +186,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Failed to sign in.');
     }
 
-    const loggedInUser = { email: data.user.email };
+    const tier = await fetchUserProfile(data.user.id);
+    const loggedInUser = { email: data.user.email, subscriptionTier: tier };
     setUser(loggedInUser);
     return loggedInUser;
   }, []);
@@ -174,14 +206,28 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       throw new Error('Failed to create account.');
     }
 
-    const newUser = { email: data.user.email };
+    // Create user profile with free tier by default
+    if (data.user?.id) {
+      await supabase
+        .from('user_profiles')
+        .upsert({
+          user_id: data.user.id,
+          subscription_tier: 'free',
+        }, {
+          onConflict: 'user_id'
+        });
+    }
+    
+    const tier = await fetchUserProfile(data.user.id);
+    const newUser = { email: data.user.email, subscriptionTier: tier };
     setUser(newUser);
     return newUser;
   }, []);
 
   const signInWithGoogle = useCallback(async (): Promise<void> => {
     // Remove the hash fragment from redirect URL - Supabase will add it
-    const baseUrl = import.meta.env.PROD 
+    const isProduction = window.location.hostname !== 'localhost' && !window.location.hostname.includes('127.0.0.1');
+    const baseUrl = isProduction
       ? 'https://calliope-git-main-heavenzy-ais-projects.vercel.app'
       : window.location.origin;
 
@@ -201,14 +247,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
 }, []);
 
+  const updateSubscription = useCallback(async (tier: 'free' | 'premium'): Promise<void> => {
+    const { data: { user: authUser } } = await supabase.auth.getUser();
+    if (!authUser) throw new Error("User not authenticated");
+
+    const { error } = await supabase
+      .from('user_profiles')
+      .upsert({
+        user_id: authUser.id,
+        subscription_tier: tier,
+      }, {
+        onConflict: 'user_id'
+      });
+
+    if (error) {
+      throw new Error(error.message || 'Failed to update subscription');
+    }
+
+    // Update local user state
+    if (user) {
+      setUser({ ...user, subscriptionTier: tier });
+    }
+  }, [user]);
+
   const logout = useCallback(async () => {
     await supabase.auth.signOut();
     setUser(null);
   }, []);
 
   const value = useMemo(
-    () => ({ user, login, signup, signInWithGoogle, logout, loading }),
-    [user, login, signup, signInWithGoogle, logout, loading]
+    () => ({ user, login, signup, signInWithGoogle, logout, updateSubscription, loading }),
+    [user, login, signup, signInWithGoogle, logout, updateSubscription, loading]
   );
 
   return (
