@@ -27,9 +27,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .eq('user_id', userId)
         .single();
 
-      if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+      if (error && error.code === 'PGRST116') {
+        // No profile exists, create one with free tier
+        console.log('No user profile found, creating default free profile');
+        const { error: insertError } = await supabase
+          .from('user_profiles')
+          .insert({
+            user_id: userId,
+            subscription_tier: 'free',
+          });
+
+        if (insertError) {
+          console.error('Error creating user profile:', insertError);
+        }
+        return 'free';
+      }
+
+      if (error) {
         console.error('Error fetching user profile:', error);
-        return 'free'; // Default to free
+        return 'free';
       }
 
       return (data?.subscription_tier as 'free' | 'premium') || 'free';
@@ -222,7 +238,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const newUser = { email: data.user.email, subscriptionTier: tier };
     setUser(newUser);
     return newUser;
-  }, []);
+  }, [fetchUserProfile]);
 
   const signInWithGoogle = useCallback(async (): Promise<void> => {
     // Remove the hash fragment from redirect URL - Supabase will add it
